@@ -1,0 +1,166 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Example usage: kubectl create -f <this_file>
+
+# k8s template feature is in proposal state, otherwise this yaml could
+# be created as a template. And it should be possible to pass the secrets
+# through environment varibale.
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ecrregistrykey
+  namespace: cb
+data:
+  .dockerconfigjson: [Your base64 dockerconfigjson]
+type: kubernetes.io/dockerconfigjson
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: cb
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        deploy: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:9.6
+        env:
+        -
+          name: "POSTGRES_PASSWORD"
+          value: "mysecretpassword"
+        -
+          name: "POSTGRES_USER"
+          value: "webview"
+        ports:
+        - containerPort: 5432
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: webapi
+  namespace: cb
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        deploy: webapi
+    spec:
+      containers:
+      - name: webapi
+        image: [your-aws-acc].dkr.ecr.ap-southeast-1.amazonaws.com/webapi
+        env:
+        -
+          name: "POSTGRES_PASSWORD"
+          value: "mysecretpassword"
+        -
+          name: "POSTGRES_USER"
+          value: "webview"
+        -
+          name: "POSTGRES_HOST"
+          value: "postgres.cb"
+        -
+          name: "JWT_SECRET"
+          value: "PCwQ&KsntC43eXR9"
+        -
+          name: "MAILGUN_DOMAIN"
+          value: "webview-mail.cb.com"
+        -
+          name: "MAILGUN_API_KEY"
+          value: "key-5a1b4038b02d496c3530dc0271975fe4"
+        -
+          name: "UI_DOMAIN"
+          value: "http://webapi.cb:8000"
+
+        ports:
+        - containerPort: 8000
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: webapi-gui
+  namespace: cb
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        deploy: webapi-gui
+    spec:
+      containers:
+      - name: webapi-gui
+        image: [your-aws-acc].dkr.ecr.ap-southeast-1.amazonaws.com/webapi-gui
+        ports:
+        - containerPort: 80
+
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    service: postgres
+  name: postgres
+  namespace: cb
+spec:
+  type: NodePort
+  ports:
+  - port: 5432
+    targetPort: 5432
+    nodePort: 30432
+  selector:
+    deploy: postgres
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    service: webapi
+  name: webapi
+  namespace: cb
+spec:
+  type: NodePort
+  ports:
+  - port: 8000
+    targetPort: 8000
+    nodePort: 30800
+  selector:
+    deploy: webapi
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    service: webapi-gui
+  name: webapi-gui
+  namespace: cb
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30080
+  selector:
+    deploy: webapi-gui
+
