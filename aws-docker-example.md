@@ -1,4 +1,4 @@
-## docker login - test
+## docker login
 ~~~~
 docker login
 # returns the docker login command execute the same
