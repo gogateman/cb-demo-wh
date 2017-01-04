@@ -1,4 +1,4 @@
-## docker login
+## docker login - testing command line
 ~~~~
 aws ecr get-login --region ap-southeast-1
 # returns the docker login command execute the same
